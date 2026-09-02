@@ -34,3 +34,9 @@ async def check_redis() -> bool:
 
     except RedisError:
         return False
+
+def get_redis() -> Redis:
+    if _redis is None:
+        raise RuntimeError("Redis is not connected")
+
+    return _redis

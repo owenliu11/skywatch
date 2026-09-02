@@ -29,6 +29,8 @@ services:
     ports:
       - "8000:8000"
     environment:
+      OPENSKY_CLIENT_ID: ${OPENSKY_CLIENT_ID}
+      OPENSKY_CLIENT_SECRET: ${OPENSKY_CLIENT_SECRET}
       DATABASE_URL: postgresql://skywatch:skywatch@db:5432/skywatch
       REDIS_URL: redis://redis:6379/0
       DAILY_CREDIT_BUDGET: 4000
@@ -42,3 +44,6 @@ services:
 volumes:
   postgres_data:
   redis_data:
+
+
+  
