@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -23,5 +24,46 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+
+@dataclass(frozen=True)
+class Region:
+    name: str
+    lamin: float
+    lomin: float
+    lamax: float
+    lomax: float
+    base_interval_s: float
+
+
+MIN_POLL_INTERVAL_S = 5.0
+MAX_POLL_INTERVAL_S = 300.0
+
+
+REGIONS = {
+    "bay_area": Region(
+        name="bay_area",
+        lamin=37.0,
+        lomin=-123.0,
+        lamax=38.5,
+        lomax=-121.5,
+        base_interval_s=15.0,
+    ),
+    "socal": Region(
+        name="socal",
+        lamin=32.5,
+        lomin=-119.0,
+        lamax=35.0,
+        lomax=-116.5,
+        base_interval_s=20.0,
+    ),
+    "nyc": Region(
+        name="nyc",
+        lamin=40.0,
+        lomin=-75.0,
+        lamax=41.5,
+        lomax=-73.0,
+        base_interval_s=20.0,
+    ),
+}
 
 settings = Settings()
