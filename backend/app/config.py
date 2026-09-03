@@ -4,23 +4,30 @@ from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parents[2]
+
+
 class Settings(BaseSettings):
-    
+
     # OpenSky
     opensky_client_id: str = ""
     opensky_client_secret: str = ""
-    
+
     # Database / Redis
     database_url: str = "postgresql://skywatch:skywatch@db:5432/skywatch"
     redis_url: str = "redis://redis:6379/0"
-    
+
     # SkyWatch
     daily_credit_budget: int = 4000
     poll_regions: str = "bay_area,socal,nyc"
     log_level: str = "INFO"
 
+    # Run pending SQL migrations from the FastAPI lifespan on startup. Handy
+    # for `docker compose up` on a clean clone; set false to manage schema
+    # out of band with `python -m app.migrate`.
+    run_migrations_on_startup: bool = True
+
     model_config = SettingsConfigDict(
-        env_file= BASE_DIR / ".env",
+        env_file=BASE_DIR / ".env",
         extra="ignore",
     )
 
@@ -67,3 +74,30 @@ REGIONS = {
 }
 
 settings = Settings()
+
+
+def active_regions() -> list[Region]:
+    """Regions the scheduler should poll, from the POLL_REGIONS setting.
+
+    Order follows POLL_REGIONS, not the REGIONS declaration. An unknown name
+    is a configuration error and fails loudly at startup rather than silently
+    polling fewer regions than intended.
+    """
+
+    names = [
+        chunk.strip()
+        for chunk in settings.poll_regions.split(",")
+        if chunk.strip()
+    ]
+
+    unknown = [name for name in names if name not in REGIONS]
+    if unknown:
+        raise ValueError(
+            f"POLL_REGIONS names unknown region(s): {', '.join(unknown)}; "
+            f"known regions are {', '.join(sorted(REGIONS))}"
+        )
+
+    if not names:
+        raise ValueError("POLL_REGIONS is empty; nothing to poll")
+
+    return [REGIONS[name] for name in names]

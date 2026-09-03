@@ -8,6 +8,35 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    services:
+      timescaledb:
+        image: timescale/timescaledb-ha:pg16
+        env:
+          POSTGRES_USER: skywatch
+          POSTGRES_PASSWORD: skywatch
+          POSTGRES_DB: skywatch
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U skywatch -d skywatch"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+
+    env:
+      TEST_DATABASE_URL: postgresql://skywatch:skywatch@localhost:5433/skywatch
+      REDIS_URL: redis://localhost:6379/0
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
