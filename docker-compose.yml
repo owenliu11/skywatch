@@ -5,6 +5,11 @@ services:
       POSTGRES_USER: skywatch
       POSTGRES_PASSWORD: skywatch
       POSTGRES_DB: skywatch
+    ports:
+      # Published on 5433 so the host test suite (and psql) can reach
+      # TimescaleDB without colliding with a local Postgres on 5432. The api
+      # service still talks to it as db:5432 over the compose network.
+      - "5433:5432"
     volumes:
       - postgres_data:/home/postgres/pgdata/data
     healthcheck:
@@ -15,6 +20,8 @@ services:
 
   redis:
     image: redis:7-alpine
+    ports:
+      - "6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -34,6 +41,8 @@ services:
       DATABASE_URL: postgresql://skywatch:skywatch@db:5432/skywatch
       REDIS_URL: redis://redis:6379/0
       DAILY_CREDIT_BUDGET: 4000
+      POLL_REGIONS: bay_area,socal,nyc
+      RUN_MIGRATIONS_ON_STARTUP: "true"
       LOG_LEVEL: INFO
     depends_on:
       db:

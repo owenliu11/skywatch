@@ -63,7 +63,21 @@ class OpenSkyClient:
         self,
         http_client: httpx.AsyncClient | None = None,
     ) -> None:
-        self._external_client = http_client
+        # One long-lived client per OpenSkyClient so polls reuse TCP/TLS
+        # connections instead of paying a fresh handshake every few seconds.
+        # An injected client (tests) is owned by the caller and not closed here.
+        if http_client is not None:
+            self._http = http_client
+            self._owns_http = False
+        else:
+            self._http = httpx.AsyncClient(timeout=15.0)
+            self._owns_http = True
+
+    async def aclose(self) -> None:
+        """Close the underlying HTTP client if this instance owns it."""
+
+        if self._owns_http:
+            await self._http.aclose()
     
     async def _release_token_lock(
             self,
@@ -294,35 +308,28 @@ class OpenSkyClient:
                 "OpenSky credentials are not configured"
             )
 
-        client, should_close = self._client()
+        response = await self._http.post(
+            TOKEN_URL,
+            data={
+                "grant_type": "client_credentials",
+                "client_id": settings.opensky_client_id,
+                "client_secret": settings.opensky_client_secret,
+            },
+        )
 
-        try:
-            response = await client.post(
-                TOKEN_URL,
-                data={
-                    "grant_type": "client_credentials",
-                    "client_id": settings.opensky_client_id,
-                    "client_secret": settings.opensky_client_secret,
-                },
+        response.raise_for_status()
+
+        payload = response.json()
+
+        token = payload["access_token"]
+        expires_in = int(payload["expires_in"])
+
+        if not isinstance(token, str) or not token:
+            raise ValueError(
+                "OpenSky token response contained invalid access_token"
             )
 
-            response.raise_for_status()
-
-            payload = response.json()
-
-            token = payload["access_token"]
-            expires_in = int(payload["expires_in"])
-
-            if not isinstance(token, str) or not token:
-                raise ValueError(
-                    "OpenSky token response contained invalid access_token"
-                )
-
-            return token, expires_in
-
-        finally:
-            if should_close:
-                await client.aclose()
+        return token, expires_in
 
     async def _get_states(
         self,
@@ -331,38 +338,18 @@ class OpenSkyClient:
     ) -> httpx.Response:
         """Request /states/all for one bounding box."""
 
-        client, should_close = self._client()
-
-        try:
-            return await client.get(
-                STATES_URL,
-                headers={
-                    "Authorization": f"Bearer {token}",
-                },
-                params={
-                    "lamin": region.lamin,
-                    "lomin": region.lomin,
-                    "lamax": region.lamax,
-                    "lomax": region.lomax,
-                    "extended": 1,
-                },
-            )
-
-        finally:
-            if should_close:
-                await client.aclose()
-
-    def _client(
-        self,
-    ) -> tuple[httpx.AsyncClient, bool]:
-        """Return an HTTP client and whether this method owns it."""
-
-        if self._external_client is not None:
-            return self._external_client, False
-
-        return (
-            httpx.AsyncClient(timeout=15.0),
-            True,
+        return await self._http.get(
+            STATES_URL,
+            headers={
+                "Authorization": f"Bearer {token}",
+            },
+            params={
+                "lamin": region.lamin,
+                "lomin": region.lomin,
+                "lamax": region.lamax,
+                "lomax": region.lomax,
+                "extended": 1,
+            },
         )
 
     @staticmethod
