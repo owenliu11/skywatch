@@ -1,12 +1,12 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
 import app.main as main_module
-import app.ingest.writer as writer
+from app.ingest import writer
 from app.ingest.opensky import FetchResult
 from app.ingest.parser import ParseResult
-from app.models import StateVector, StatesSnapshot
+from app.models import StatesSnapshot, StateVector
 
 
 @pytest.fixture(autouse=True)
@@ -80,7 +80,7 @@ async def test_ingest_result_updates_memory_and_queue() -> None:
 
     assert item.fetched_at == datetime.fromtimestamp(
         snapshot.time,
-        tz=timezone.utc,
+        tz=UTC,
     )
 
     writer.queue.task_done()

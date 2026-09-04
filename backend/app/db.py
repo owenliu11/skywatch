@@ -56,7 +56,12 @@ async def check_db() -> bool:
         async with _pool.acquire() as connection:
             result = await connection.fetchval("SELECT 1")
             return result == 1
-    except Exception:
+    except (
+        asyncpg.PostgresError,
+        asyncpg.InterfaceError,
+        OSError,
+        TimeoutError,
+    ):
         return False
 
 

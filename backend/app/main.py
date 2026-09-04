@@ -22,12 +22,16 @@ from app.ingest.opensky import FetchResult, OpenSkyClient, states_budget
 from app.ingest.scheduler import RegionScheduler
 from app.ingest.writer import (
     QueuedVector,
-    metrics as writer_metrics,
     offer_vector,
-    queue as write_queue,
     queue_depth,
     queue_max,
     writer_loop,
+)
+from app.ingest.writer import (
+    metrics as writer_metrics,
+)
+from app.ingest.writer import (
+    queue as write_queue,
 )
 from app.migrate import apply_migrations
 from app.models import StatesSnapshot
