@@ -48,22 +48,6 @@ REGIONS = {
         lomax=-121.5,
         base_interval_s=15.0,
     ),
-    "socal": Region(
-        name="socal",
-        lamin=32.5,
-        lomin=-119.0,
-        lamax=35.0,
-        lomax=-116.5,
-        base_interval_s=20.0,
-    ),
-    "nyc": Region(
-        name="nyc",
-        lamin=40.0,
-        lomin=-75.0,
-        lamax=41.5,
-        lomax=-73.0,
-        base_interval_s=20.0,
-    ),
 }
 
 settings = Settings()
