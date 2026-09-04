@@ -5,6 +5,8 @@ services:
       POSTGRES_USER: skywatch
       POSTGRES_PASSWORD: skywatch
       POSTGRES_DB: skywatch
+    ports:
+      - "55432:5432"
     volumes:
       - postgres_data:/home/postgres/pgdata/data
     healthcheck:

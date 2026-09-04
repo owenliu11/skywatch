@@ -4,6 +4,8 @@ WORKDIR /app
 
 COPY pyproject.toml .
 COPY app ./app
+COPY migrations ./migrations
+COPY tests ./tests
 
 RUN pip install --no-cache-dir -e ".[dev]"
 
