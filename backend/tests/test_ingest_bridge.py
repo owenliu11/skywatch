@@ -7,12 +7,11 @@ from app.ingest import writer
 from app.ingest.opensky import FetchResult
 from app.ingest.parser import ParseResult
 from app.models import StatesSnapshot, StateVector
+from app.state import LiveState
 
 
 @pytest.fixture(autouse=True)
 def reset_state() -> None:
-    main_module.latest_snapshots.clear()
-
     while not writer.queue.empty():
         writer.queue.get_nowait()
         writer.queue.task_done()
@@ -53,8 +52,8 @@ async def test_ingest_result_updates_memory_and_queue() -> None:
     )
 
     parsed = ParseResult(
-    snapshot=snapshot,
-    errors=(),
+        snapshot=snapshot,
+        errors=(),
     )
 
     result = FetchResult(
@@ -67,10 +66,26 @@ async def test_ingest_result_updates_memory_and_queue() -> None:
         error=None,
     )
 
-    await main_module.handle_ingest_result(result)
+    live = LiveState()
 
-    assert main_module.latest_snapshots["bay_area"] == snapshot
+    await main_module.handle_ingest_result(
+        result,
+        live,
+    )
 
+    # Phase 3: verify the current-state map was updated.
+    current = live.snapshot()
+
+    assert len(current) == 1
+    assert "abc123" in current
+
+    record = current["abc123"]
+
+    assert record.state == state
+    assert record.region == "bay_area"
+    assert record.received_at.tzinfo == UTC
+
+    # Phase 2 storage path must still receive the same vector.
     assert writer.queue.qsize() == 1
 
     item = writer.queue.get_nowait()
