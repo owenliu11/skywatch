@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from time import monotonic
@@ -8,6 +9,8 @@ import asyncpg
 
 from app.db import pool as db_pool
 from app.models import StateVector
+
+log = logging.getLogger(__name__)
 
 QUEUE_MAX = 10_000
 BATCH_MAX = 1_000
@@ -502,6 +505,18 @@ async def writer_loop() -> None:
                     gaps,
                 )
 
+        except (asyncpg.PostgresError, asyncpg.InterfaceError, OSError, TimeoutError):
+            # History may be lost during an outage; keep live ingestion independent
+            # and let the pool reconnect for the next batch after recovery.
+            _restore_pending_gaps(gaps)
+            metrics.dropped_total += len(batch)
+            metrics.last_drop_at = datetime.now(UTC)
+            for item in batch:
+                _record_drop(item, reason="db_unavailable")
+                queue.task_done()
+            log.warning("Database write failed; dropped %d history rows", len(batch))
+            await asyncio.sleep(1.0)
+            continue
         except Exception:
             _restore_pending_gaps(gaps)
             raise

@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import httpx
+from redis.exceptions import RedisError
 
 from app.config import Region, settings
 from app.ingest.budget import CreditBudget, bbox_cost
@@ -131,7 +132,7 @@ class OpenSkyClient:
                 credits_remaining=states_budget.remaining(),
             )
 
-        except (RuntimeError, KeyError, TypeError, ValueError) as exc:
+        except (RedisError, RuntimeError, KeyError, TypeError, ValueError) as exc:
             return self._failure(
                 region=region,
                 error=f"{type(exc).__name__}: {exc}",

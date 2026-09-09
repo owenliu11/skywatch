@@ -30,6 +30,21 @@ services:
       context: ./backend
     ports:
       - "8000:8000"
+
+    volumes:
+      - ./backend:/app
+
+    command:
+      [
+        "uvicorn",
+        "app.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--reload"
+      ]
+
     environment:
       OPENSKY_CLIENT_ID: ${OPENSKY_CLIENT_ID}
       OPENSKY_CLIENT_SECRET: ${OPENSKY_CLIENT_SECRET}
@@ -37,6 +52,8 @@ services:
       REDIS_URL: redis://redis:6379/0
       DAILY_CREDIT_BUDGET: 4000
       LOG_LEVEL: INFO
+      WS_ALLOWED_ORIGINS: ${WS_ALLOWED_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173,http://localhost:8000,http://127.0.0.1:8000}
+
     depends_on:
       db:
         condition: service_healthy

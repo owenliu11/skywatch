@@ -7,9 +7,22 @@ import logging
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Request
 
-from app.config import REGIONS
+from app.api.aircraft import router as aircraft_router
+from app.api.anomalies import router as anomalies_router
+from app.api.tracks import router as tracks_router
+from app.api.ws import (
+    broadcast_loop,
+)
+from app.api.ws import (
+    manager as ws_manager,
+)
+from app.api.ws import metrics as ws_metrics
+from app.api.ws import (
+    router as ws_router,
+)
+from app.config import REGIONS, settings
 from app.db import (
     check_db,
     connect_db,
@@ -34,17 +47,20 @@ from app.ingest.writer import (
     queue as write_queue,
 )
 from app.migrate import apply_migrations
-from app.models import StatesSnapshot
 from app.redis_client import (
     check_redis,
     connect_redis,
     disconnect_redis,
 )
+from app.state import LiveState
 
 log = logging.getLogger(__name__)
-latest_snapshots: dict[str, StatesSnapshot] = {}
 
-async def handle_ingest_result(result: FetchResult) -> None:
+
+async def handle_ingest_result(
+        result: FetchResult,
+        live:LiveState,
+    ) -> None:
     """
     Handle one successful OpenSky region result.
 
@@ -58,12 +74,6 @@ async def handle_ingest_result(result: FetchResult) -> None:
 
     snapshot = result.parsed.snapshot
 
-    # Current-state path.
-    #
-    # This is deliberately independent of the database queue.
-    # Phase 3's live map must not depend on PostgreSQL keeping up.
-    latest_snapshots[result.region] = snapshot
-
     # Storage provenance comes from OpenSky's response snapshot time,
     # not datetime.now().
     fetched_at = datetime.fromtimestamp(
@@ -74,6 +84,15 @@ async def handle_ingest_result(result: FetchResult) -> None:
     accepted = 0
 
     for state in snapshot.states:
+        # Phase 3 live path.
+        #
+        # This must happen before the database queue. Queue backpressure
+        # may cost us history, but must never cost us live state.
+        live.upsert(
+            state,
+            snapshot.region,
+        )
+
         queued = QueuedVector(
             state=state,
             region=snapshot.region,
@@ -125,7 +144,19 @@ async def lifespan(app: FastAPI):
     await connect_redis()
 
     log.info("Database migrations complete; Database and Redis connected")
+    live = LiveState()
+    app.state.live = live
+    broadcast_task = asyncio.create_task(
+        broadcast_loop(
+            live,
+            ws_manager,
+        ),
+        name="skywatch-ws-broadcast",
+    )
 
+    app.state.broadcast_task = broadcast_task
+
+    log.info("SkyWatch WebSocket broadcaster started")
     # Phase 2 database writer.
     writer_task = asyncio.create_task(
     writer_loop(),
@@ -139,12 +170,40 @@ async def lifespan(app: FastAPI):
     # Phase 1 OpenSky ingestion.
     client = OpenSkyClient()
 
+    # Adapter callback that gives the ingest handler access
+    # to this process's LiveState instance.
+    async def on_ingest_result(
+        result: FetchResult,
+    ) -> None:
+        await handle_ingest_result(
+            result,
+            live,
+        )
+
+    enabled_region_names = [
+        name.strip()
+        for name in settings.poll_regions.split(",")
+        if name.strip()
+    ]
+
+    enabled_regions = [
+        REGIONS[name]
+        for name in enabled_region_names
+        if name in REGIONS
+    ]
+
+    log.info(
+    "Enabled polling regions: %s",
+    ", ".join(region.name for region in enabled_regions),
+    )
+
     scheduler = RegionScheduler(
         client=client,
-        regions=list(REGIONS.values()),
+        regions=enabled_regions,
         budget_fraction=get_budget_fraction,
-        on_result=handle_ingest_result,
+        on_result=on_ingest_result,
     )
+
 
     app.state.opensky_client = client
     app.state.region_scheduler = scheduler
@@ -158,7 +217,7 @@ async def lifespan(app: FastAPI):
 
     log.info(
         "SkyWatch scheduler started with %d regions",
-        len(REGIONS),
+        len(enabled_regions),
     )
 
     try:
@@ -166,7 +225,13 @@ async def lifespan(app: FastAPI):
 
     finally:
         log.info("Stopping SkyWatch")
+        if not broadcast_task.done():
+            broadcast_task.cancel()
 
+        await asyncio.gather(
+            broadcast_task,
+            return_exceptions=True,
+        )
         await scheduler.stop()
 
         if not scheduler_task.done():
@@ -213,10 +278,16 @@ app = FastAPI(
     ),
     lifespan=lifespan,
 )
+app.include_router(aircraft_router)
+app.include_router(anomalies_router)
+app.include_router(tracks_router)
+app.include_router(ws_router)
 
 
 @app.get("/health")
-async def health() -> dict[str, object]:
+async def health(
+    request: Request,
+) -> dict[str, object]:
     """Return dependency and ingestion-pipeline health."""
 
     db_ok = await check_db()
@@ -235,7 +306,16 @@ async def health() -> dict[str, object]:
         "status": status,
         "database": db_ok,
         "redis": redis_ok,
-
+        # Phase 3 live state.
+        "live_map_size": len(request.app.state.live),
+        "live_map_evicted_total": request.app.state.live.evicted_total,
+        "ws_connections": len(ws_manager),
+        "ws_connections_max": ws_manager.max_connections,
+        "ws_frames_sent_total": ws_metrics.frames_sent_total,
+        "ws_frames_dropped_total": ws_metrics.frames_dropped_total,
+        "ws_resyncs_total": ws_metrics.resyncs_total,
+        "tick_ms_last": ws_metrics.tick_ms_last,
+        "tick_ms_p95": ws_metrics.tick_ms_p95,
         # OpenSky credit budget.
         "credits_remaining": states_budget.remaining(),
         "credit_budget": states_budget.daily_budget,
@@ -267,49 +347,4 @@ async def health() -> dict[str, object]:
             if writer_metrics.last_batch_ms is not None
             else None
         ),
-    }
-
-@app.get("/api/aircraft")
-async def get_aircraft(region: str = "bay_area") -> dict[str, object]:
-    """Return the latest aircraft observed in one region."""
-
-    if region not in REGIONS:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Unknown region: {region}",
-        )
-
-    snapshot = latest_snapshots.get(region)
-
-    if snapshot is None:
-        raise HTTPException(
-            status_code=503,
-            detail=f"No aircraft snapshot available yet for region: {region}",
-        )
-
-    aircraft = [
-        {
-            "icao24": state.icao24,
-            "callsign": state.callsign,
-            "origin_country": state.origin_country,
-            "latitude": state.latitude,
-            "longitude": state.longitude,
-            "baro_altitude": state.baro_altitude,
-            "geo_altitude": state.geo_altitude,
-            "velocity": state.velocity,
-            "true_track": state.true_track,
-            "vertical_rate": state.vertical_rate,
-            "on_ground": state.on_ground,
-            "squawk": state.squawk,
-            "category": state.category,
-            "last_contact": state.last_contact,
-        }
-        for state in snapshot.states
-    ]
-
-    return {
-        "region": region,
-        "snapshot_time": snapshot.time,
-        "aircraft_count": snapshot.aircraft_count,
-        "aircraft": aircraft,
     }
