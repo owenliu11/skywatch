@@ -80,6 +80,14 @@ REGIONS = {
         lomax=-116.0,
         base_interval_s=20.0,
     ),
+    # "denver": Region(
+    # name="denver",
+    # lamin=39.35,
+    # lomin=-105.35,
+    # lamax=40.20,
+    # lomax=-104.35,
+    # base_interval_s=15.0,
+    # ),
 }
 
 settings = Settings()

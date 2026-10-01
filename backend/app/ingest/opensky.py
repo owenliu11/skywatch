@@ -220,7 +220,7 @@ class OpenSkyClient:
         # Fast path: token already exists.
         cached = await redis.get(TOKEN_KEY)
         if cached:
-            return cached
+            return cached.decode("utf-8") if isinstance(cached, bytes) else cached
 
         lock_value = uuid.uuid4().hex
 
@@ -238,7 +238,7 @@ class OpenSkyClient:
                 # we acquired it.
                 cached = await redis.get(TOKEN_KEY)
                 if cached:
-                    return cached
+                    return cached.decode("utf-8") if isinstance(cached, bytes) else cached
 
                 token, expires_in = await self._fetch_token()
 
@@ -272,7 +272,7 @@ class OpenSkyClient:
             cached = await redis.get(TOKEN_KEY)
 
             if cached:
-                return cached
+                return cached.decode("utf-8") if isinstance(cached, bytes) else cached
 
         raise RuntimeError(
             "timed out waiting for OpenSky token refresh"

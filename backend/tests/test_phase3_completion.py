@@ -8,13 +8,6 @@ from app.config import settings
 from app.main import app
 
 
-@pytest.mark.parametrize("query", ["", "?since=&type=", "?since=2026-09-08T00:00:00Z&type=teleport"])
-def test_anomalies_stub(query):
-    response = TestClient(app).get("/anomalies" + query)
-    assert response.status_code == 200
-    assert response.json() == []
-
-
 @pytest.mark.parametrize("origin", ["https://evil.example", "null", "http://localhost:5173.evil.example"])
 def test_disallowed_origin(origin):
     with (

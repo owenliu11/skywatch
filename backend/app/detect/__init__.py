@@ -1,0 +1,1 @@
+"""Live detection input interfaces."""
