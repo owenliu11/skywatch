@@ -25,3 +25,4 @@ def test_allowed_origin(monkeypatch, origin):
     with TestClient(app).websocket_connect("/ws/live", headers=headers) as socket:
         socket.send_json({"t": "invalid"})
         assert socket.receive_json()["t"] == "error"
+        socket.close()
