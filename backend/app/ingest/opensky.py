@@ -26,13 +26,6 @@ from app.ingest.budget import CreditBudget, bbox_cost
 from app.ingest.parser import ParseResult, parse_states
 from app.redis_client import get_redis
 
-TOKEN_URL = (
-    "https://auth.opensky-network.org/"
-    "auth/realms/opensky-network/protocol/openid-connect/token"
-)
-
-STATES_URL = "https://opensky-network.org/api/states/all"
-
 TOKEN_KEY = "opensky:access_token"
 TOKEN_REFRESH_MARGIN_S = 300
 
@@ -299,7 +292,7 @@ class OpenSkyClient:
 
         try:
             response = await client.post(
-                TOKEN_URL,
+                settings.opensky_token_url,
                 data={
                     "grant_type": "client_credentials",
                     "client_id": settings.opensky_client_id,
@@ -336,7 +329,7 @@ class OpenSkyClient:
 
         try:
             return await client.get(
-                STATES_URL,
+                settings.opensky_states_url,
                 headers={
                     "Authorization": f"Bearer {token}",
                 },

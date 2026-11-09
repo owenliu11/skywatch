@@ -11,6 +11,8 @@ from fastapi import FastAPI, Request
 
 from app.api.aircraft import router as aircraft_router
 from app.api.anomalies import router as anomalies_router
+from app.api.ingest_control import CycleRunner
+from app.api.ingest_control import router as ingest_control_router
 from app.api.tracks import router as tracks_router
 from app.api.ws import (
     broadcast_loop,
@@ -212,9 +214,15 @@ async def lifespan(app: FastAPI):
     ", ".join(region.name for region in enabled_regions),
     )
 
+    test_mode = settings.skywatch_test_mode
+
+    if test_mode:
+        log.warning("SKYWATCH_TEST_MODE enabled: polling disabled, /__test routes active")
+        app.state.cycle_runner = CycleRunner(client, enabled_regions, on_ingest_result)
+
     scheduler = RegionScheduler(
         client=client,
-        regions=enabled_regions,
+        regions=[] if test_mode else enabled_regions,
         budget_fraction=get_budget_fraction,
         on_result=on_ingest_result,
     )
@@ -291,7 +299,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="SkyWatch",
-    version="0.1.0",
+    version="0.4.0",
     description=(
         "Real-time airspace monitoring and anomaly detection service"
     ),
@@ -301,6 +309,9 @@ app.include_router(aircraft_router)
 app.include_router(anomalies_router)
 app.include_router(tracks_router)
 app.include_router(ws_router)
+
+if settings.skywatch_test_mode:
+    app.include_router(ingest_control_router)
 
 
 @app.get("/health")
