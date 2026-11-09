@@ -8,6 +8,7 @@ from typing import NamedTuple
 import asyncpg
 
 from app.db import pool as db_pool
+from app.detect.gaps import recent_gaps
 from app.models import StateVector
 
 log = logging.getLogger(__name__)
@@ -167,6 +168,7 @@ def _record_drop(item: QueuedVector, reason: str) -> None:
         reason=reason,
     )
 
+    recent_gaps.record(gap.region, gap.started_at.timestamp(), gap.ended_at.timestamp())
     _merge_pending_gap(gap)
 
 
@@ -366,12 +368,22 @@ def aircraft_rows(
             }
             continue
 
-        current["first_seen"] = min(current["first_seen"], observed_at)
+        first_seen = current["first_seen"]
+        last_seen = current["last_seen"]
+        latest_observation = current["latest_observation"]
 
-        current["last_seen"] = max(current["last_seen"], observed_at)
+        if not isinstance(first_seen, datetime):
+            raise TypeError("first_seen must be datetime")
+        if not isinstance(last_seen, datetime):
+            raise TypeError("last_seen must be datetime")
+        if not isinstance(latest_observation, datetime):
+            raise TypeError("latest_observation must be datetime")
+
+        current["first_seen"] = min(first_seen, observed_at)
+        current["last_seen"] = max(last_seen, observed_at)
 
         # Only let a newer observation update descriptive fields.
-        if observed_at >= current["latest_observation"]:
+        if observed_at >= latest_observation:
             if state.callsign is not None:
                 current["callsign"] = state.callsign
 

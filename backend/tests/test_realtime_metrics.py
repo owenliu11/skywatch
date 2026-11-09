@@ -109,6 +109,7 @@ def test_websocket_health_connection_lifecycle(monkeypatch, metrics):
         socket.send_json({"t": "viewport", "bbox": [37.2, -122.6, 38.1, -121.7]})
         health = client.get("/health").json()
         assert health["status"] == "degraded"
+        assert health["detector_ready"] == 0
         assert health["ws_connections"] == 1
         assert health["ws_connections_max"] == 2
         for key in ("live_map_size", "live_map_evicted_total", "ws_frames_sent_total",

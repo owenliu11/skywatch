@@ -12,6 +12,7 @@ from time import perf_counter
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from app.config import settings
+from app.detect.pipeline import DetectionPipeline
 from app.state import (
     LOST_AFTER_S,
     LiveRecord,
@@ -446,6 +447,7 @@ def candidates(
 async def broadcast_loop(
     live: LiveState,
     connection_manager: ConnectionManager,
+    detector: DetectionPipeline | None = None,
 ) -> None:
     """Broadcast viewport-filtered live updates to all clients."""
 
@@ -456,6 +458,7 @@ async def broadcast_loop(
             seconds=LOST_AFTER_S,
         )
         live.evict_before(cutoff)
+        opened = detector.tick(now.timestamp(), cutoff.timestamp()) if detector else []
         states = live.snapshot()
         grid = build_grid(states)
 
@@ -476,13 +479,14 @@ async def broadcast_loop(
                 now,
             )
 
-            if frame is None:
-                continue
-
-            offer_frame(
-                connection,
-                frame,
-            )
+            if frame is not None:
+                offer_frame(connection, frame)
+            if opened:
+                connection.seq += 1
+                offer_frame(connection, {
+                    "t": "anomaly", "seq": connection.seq,
+                    "server_time": now.timestamp(), "anomalies": opened,
+                })
 
         metrics.record_tick((perf_counter() - tick_started) * 1000)
         await asyncio.sleep(TICK_INTERVAL_S)

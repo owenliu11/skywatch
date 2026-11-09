@@ -1,15 +1,30 @@
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlsplit
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parents[2]
+
+DEFAULT_OPENSKY_TOKEN_URL = (
+    "https://auth.opensky-network.org/"
+    "auth/realms/opensky-network/protocol/openid-connect/token"
+)
+DEFAULT_OPENSKY_STATES_URL = "https://opensky-network.org/api/states/all"
+
+
 class Settings(BaseSettings):
-    
+
     # OpenSky
     opensky_client_id: str = ""
     opensky_client_secret: str = ""
-    
+    opensky_token_url: str = DEFAULT_OPENSKY_TOKEN_URL
+    opensky_states_url: str = DEFAULT_OPENSKY_STATES_URL
+
+    # Disables continuous polling and exposes /__test controls.
+    skywatch_test_mode: bool = False
+
     # Database / Redis
     database_url: str = "postgresql://skywatch:skywatch@db:5432/skywatch"
     redis_url: str = "redis://redis:6379/0"
@@ -28,6 +43,18 @@ class Settings(BaseSettings):
         env_file= BASE_DIR / ".env",
         extra="ignore",
     )
+
+    @model_validator(mode="after")
+    def _test_mode_must_not_reach_opensky(self) -> "Settings":
+        if self.skywatch_test_mode:
+            for url in (self.opensky_token_url, self.opensky_states_url):
+                host = urlsplit(url).hostname or ""
+                if host == "opensky-network.org" or host.endswith(".opensky-network.org"):
+                    raise ValueError(
+                        "SKYWATCH_TEST_MODE requires OPENSKY_TOKEN_URL and "
+                        "OPENSKY_STATES_URL to point at a local fixture"
+                    )
+        return self
 
 
 @dataclass(frozen=True)
@@ -80,6 +107,14 @@ REGIONS = {
         lomax=-116.0,
         base_interval_s=20.0,
     ),
+    # "denver": Region(
+    # name="denver",
+    # lamin=39.35,
+    # lomin=-105.35,
+    # lamax=40.20,
+    # lomax=-104.35,
+    # base_interval_s=15.0,
+    # ),
 }
 
 settings = Settings()

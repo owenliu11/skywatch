@@ -26,13 +26,6 @@ from app.ingest.budget import CreditBudget, bbox_cost
 from app.ingest.parser import ParseResult, parse_states
 from app.redis_client import get_redis
 
-TOKEN_URL = (
-    "https://auth.opensky-network.org/"
-    "auth/realms/opensky-network/protocol/openid-connect/token"
-)
-
-STATES_URL = "https://opensky-network.org/api/states/all"
-
 TOKEN_KEY = "opensky:access_token"
 TOKEN_REFRESH_MARGIN_S = 300
 
@@ -220,7 +213,7 @@ class OpenSkyClient:
         # Fast path: token already exists.
         cached = await redis.get(TOKEN_KEY)
         if cached:
-            return cached
+            return cached.decode("utf-8") if isinstance(cached, bytes) else cached
 
         lock_value = uuid.uuid4().hex
 
@@ -238,7 +231,7 @@ class OpenSkyClient:
                 # we acquired it.
                 cached = await redis.get(TOKEN_KEY)
                 if cached:
-                    return cached
+                    return cached.decode("utf-8") if isinstance(cached, bytes) else cached
 
                 token, expires_in = await self._fetch_token()
 
@@ -272,7 +265,7 @@ class OpenSkyClient:
             cached = await redis.get(TOKEN_KEY)
 
             if cached:
-                return cached
+                return cached.decode("utf-8") if isinstance(cached, bytes) else cached
 
         raise RuntimeError(
             "timed out waiting for OpenSky token refresh"
@@ -299,7 +292,7 @@ class OpenSkyClient:
 
         try:
             response = await client.post(
-                TOKEN_URL,
+                settings.opensky_token_url,
                 data={
                     "grant_type": "client_credentials",
                     "client_id": settings.opensky_client_id,
@@ -336,7 +329,7 @@ class OpenSkyClient:
 
         try:
             return await client.get(
-                STATES_URL,
+                settings.opensky_states_url,
                 headers={
                     "Authorization": f"Bearer {token}",
                 },

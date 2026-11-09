@@ -1,4 +1,5 @@
 import asyncio
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from fastapi import FastAPI
@@ -56,6 +57,7 @@ async def test_lifespan_starts_and_stops_services(
 
     class FakeScheduler:
         def __init__(self, **kwargs) -> None:
+            self.on_result = kwargs["on_result"]
             self.run_started = asyncio.Event()
             self.stop_requested = asyncio.Event()
 
@@ -128,12 +130,24 @@ async def test_lifespan_starts_and_stops_services(
         FakeScheduler,
     )
 
+    handler = AsyncMock()
+    monkeypatch.setattr(main_module, "handle_ingest_result", handler)
+
     test_app = FastAPI(
         lifespan=main_module.lifespan,
     )
 
     async with test_app.router.lifespan_context(test_app):
         scheduler = test_app.state.region_scheduler
+        windows = test_app.state.windows
+        assert isinstance(windows, main_module.TrackWindows)
+        assert windows.ready is False
+        result = Mock()
+        await scheduler.on_result(result)
+        await scheduler.on_result(result)
+        assert handler.await_count == 2
+        for call in handler.await_args_list:
+            assert call.args == (result, test_app.state.live, windows)
 
         await asyncio.wait_for(
             scheduler.run_started.wait(),

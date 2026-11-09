@@ -1,0 +1,11 @@
+flowchart LR
+    DB[("Local history and ingest_gaps")] --> BUILD["build_evaluation.py\nidentity/time split + session extraction"]
+    BUILD --> RAW["recorded_tracks.parquet\nrecent_gaps.json"]
+    BUILD --> INJ["AnomalyInjector\n30 injected sessions of 615"]
+    INJ --> LAB["labeled_set.parquet\nmanifest.json: seed / labels / hash"]
+    LAB --> EV["evaluate.run / evaluate_rows\nshared windows, features, rules, store"]
+    RAW --> REVIEW["review_real.py\nunmodified replay evidence"]
+    EV --> MET["rules_metrics.json\nwindow P/R/F1, event recall, alert precision"]
+    REVIEW --> TAX["real_detection_review files\ntaxonomy_review.csv + docs/taxonomy.md"]
+    SYN["generate_track"] --> TEST["test_injection_evaluation.py\ncontrolled checks"]
+    TEST -.-> EV

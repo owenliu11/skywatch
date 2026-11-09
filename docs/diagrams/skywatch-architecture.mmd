@@ -1,0 +1,49 @@
+flowchart TB
+    OS["OpenSky OAuth and states API"]
+    OSM["OpenStreetMap raster tiles"]
+    subgraph LOCAL["Local computer — no deployed service"]
+        UI["React + MapLibre browser\nVite development server"]
+        subgraph API["One FastAPI process / asyncio event loop"]
+            START["Settings + lifespan\nDB migrations / tasks / shutdown"]
+            ING["RegionScheduler → OpenSkyClient\nCreditBudget → parser → StateVector"]
+            BRIDGE["handle_ingest_result"]
+            LIVE["LiveState\nlatest observation per ICAO24"]
+            WIN["TrackWindows\n5–10 observations per aircraft"]
+            DET["DetectionPipeline.tick\n12 features → 5 ordered rules"]
+            ALERT["AnomalyStore\nopen → pending → persisted"]
+            GAP["RecentGaps\nregion-aware drop intervals"]
+            Q["Bounded history queue\nwriter_loop"]
+            WS["broadcast_loop + ConnectionManager\nsnapshot / delta / anomaly"]
+            REST["REST\naircraft / tracks / anomalies / health"]
+        end
+        REDIS[("Redis\nOAuth token + refresh lock")]
+        DB[("TimescaleDB / PostgreSQL\nstate_vectors / aircraft\ningest_gaps / anomalies")]
+        EVAL["Offline scripts + frozen Parquet\ninjection / evaluation / human review"]
+        TEST["Backend tests + saved verification\nCI: Ruff / pytest / mypy"]
+    end
+    START -.-> ING
+    START -.-> WS
+    OS <--> ING
+    ING <--> REDIS
+    ING --> BRIDGE
+    BRIDGE --> LIVE
+    BRIDGE --> WIN
+    BRIDGE --> Q
+    WIN --> DET
+    WS -->|"calls once each tick"| DET
+    GAP -->|"abstention evidence"| DET
+    DET --> ALERT
+    DET -->|"newly opened alerts"| WS
+    LIVE --> WS
+    Q --> DB
+    Q -->|"queue-full or DB-failure drops"| GAP
+    ALERT -->|"separate async flush task"| DB
+    LIVE --> REST
+    ALERT --> REST
+    DB --> REST
+    REST <--> UI
+    WS <--> UI
+    OSM --> UI
+    DB -.->|"explicit offline export"| EVAL
+    EVAL -.->|"reuses windows / features / rules / merge"| DET
+    TEST -.-> API

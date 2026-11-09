@@ -11,6 +11,8 @@ from fastapi import FastAPI, Request
 
 from app.api.aircraft import router as aircraft_router
 from app.api.anomalies import router as anomalies_router
+from app.api.ingest_control import CycleRunner
+from app.api.ingest_control import router as ingest_control_router
 from app.api.tracks import router as tracks_router
 from app.api.ws import (
     broadcast_loop,
@@ -31,6 +33,9 @@ from app.db import (
 from app.db import (
     pool as db_pool,
 )
+from app.detect.gaps import recent_gaps
+from app.detect.pipeline import DetectionPipeline
+from app.detect.windows import TrackWindows
 from app.ingest.opensky import FetchResult, OpenSkyClient, states_budget
 from app.ingest.scheduler import RegionScheduler
 from app.ingest.writer import (
@@ -60,13 +65,13 @@ log = logging.getLogger(__name__)
 async def handle_ingest_result(
         result: FetchResult,
         live:LiveState,
+        windows: TrackWindows,
     ) -> None:
     """
     Handle one successful OpenSky region result.
 
-    The latest snapshot is kept in memory for the future live API,
-    while each StateVector is independently offered to the
-    database write queue.
+    Each StateVector reaches live state and the detector input before
+    being independently offered to the database write queue.
     """
 
     if not result.ok or result.parsed is None:
@@ -92,6 +97,9 @@ async def handle_ingest_result(
             state,
             snapshot.region,
         )
+
+        # Phase 4 A1: detector input must not inherit database queue drops.
+        windows.append(state, snapshot.region)
 
         queued = QueuedVector(
             state=state,
@@ -146,10 +154,18 @@ async def lifespan(app: FastAPI):
     log.info("Database migrations complete; Database and Redis connected")
     live = LiveState()
     app.state.live = live
+    windows = TrackWindows()
+    app.state.windows = windows
+    recent_gaps.intervals.clear()
+    detector = DetectionPipeline(windows, recent_gaps)
+    app.state.detector = detector
+    anomaly_task = asyncio.create_task(detector.flush_loop(), name="skywatch-anomaly-writer")
+    app.state.anomaly_task = anomaly_task
     broadcast_task = asyncio.create_task(
         broadcast_loop(
             live,
             ws_manager,
+            detector,
         ),
         name="skywatch-ws-broadcast",
     )
@@ -171,13 +187,14 @@ async def lifespan(app: FastAPI):
     client = OpenSkyClient()
 
     # Adapter callback that gives the ingest handler access
-    # to this process's LiveState instance.
+    # to this process's shared live state and detector input.
     async def on_ingest_result(
         result: FetchResult,
     ) -> None:
         await handle_ingest_result(
             result,
             live,
+            windows,
         )
 
     enabled_region_names = [
@@ -197,9 +214,15 @@ async def lifespan(app: FastAPI):
     ", ".join(region.name for region in enabled_regions),
     )
 
+    test_mode = settings.skywatch_test_mode
+
+    if test_mode:
+        log.warning("SKYWATCH_TEST_MODE enabled: polling disabled, /__test routes active")
+        app.state.cycle_runner = CycleRunner(client, enabled_regions, on_ingest_result)
+
     scheduler = RegionScheduler(
         client=client,
-        regions=enabled_regions,
+        regions=[] if test_mode else enabled_regions,
         budget_fraction=get_budget_fraction,
         on_result=on_ingest_result,
     )
@@ -266,13 +289,17 @@ async def lifespan(app: FastAPI):
             return_exceptions=True,
         )
 
+        anomaly_task.cancel()
+        await asyncio.gather(anomaly_task, return_exceptions=True)
+        detector.store.close_expired(0, all_open=True)
+        await detector.persist()
         await disconnect_redis()
         await disconnect_db()
 
 
 app = FastAPI(
     title="SkyWatch",
-    version="0.1.0",
+    version="0.4.0",
     description=(
         "Real-time airspace monitoring and anomaly detection service"
     ),
@@ -282,6 +309,9 @@ app.include_router(aircraft_router)
 app.include_router(anomalies_router)
 app.include_router(tracks_router)
 app.include_router(ws_router)
+
+if settings.skywatch_test_mode:
+    app.include_router(ingest_control_router)
 
 
 @app.get("/health")
@@ -302,8 +332,12 @@ async def health(
         0,
     )
 
+    windows = getattr(request.app.state, "windows", None)
+
     return {
+        **(request.app.state.detector.health() if hasattr(request.app.state, "detector") else {}),
         "status": status,
+        "detector_ready": windows.ready_count if windows is not None else 0,
         "database": db_ok,
         "redis": redis_ok,
         # Phase 3 live state.

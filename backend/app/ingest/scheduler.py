@@ -179,7 +179,7 @@ class RegionScheduler:
             #
             # Do NOT translate failure into aircraft_seen=0, because that would
             # incorrectly teach the adaptive policy that the region is sparse.
-            if not result.ok:
+            if not result.ok or result.parsed is None:
                 log.warning(
                     "%s: fetch failed; retrying in %.0fs",
                     region.name,
