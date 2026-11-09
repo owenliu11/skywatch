@@ -30,6 +30,8 @@ Test mode refuses to start if either provider URL points at `opensky-network.org
 
 The provider fixture must serve the OAuth token and `/states/all` responses. State rows are positional arrays of 17 or 18 fields.
 
+Use synthetic fixtures only. Never commit recorded OpenSky data or real aircraft identifiers.
+
 ## Ingestion control
 
 ```http

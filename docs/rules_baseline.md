@@ -6,7 +6,7 @@ Seed **20261001**. Query cutoff **2026-10-01T00:21:39.449444+00:00**. Active reg
 615 contiguous recorded sessions (minimum 30 samples), 30 injected sessions (4.88%; floor of 5%). Seven variants, 4–5 events each. No model was trained.
 Aircraft are partitioned by SHA256(icao24) modulo 2. Even identities before 2026-09-30 UTC are reserved; odd identities on/after that date are evaluated. Reserved IDs and every evaluated session are in `eval/manifest.json`. No training/serving of Isolation Forest.
 Only injection candidates require non-null motion fields, advancing valid position times, and airborne samples. Unmodified controls retain missing data and ground observations. This biases injected positives toward good telemetry; exclusions must be read alongside recall.
-Dataset SHA256: `ba90c53218fb75ac475bb314de5225c71d276da76048b3eea89b94b21a953ca1`.
+Dataset SHA256: `ba90c53218fb75ac475bb314de5225c71d276da76048b3eea89b94b21a953ca1`. The dataset is derived from OpenSky data and is not distributed; this hash identifies the private local copy.
 
 ## Predeclared evaluation semantics
 

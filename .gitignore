@@ -20,4 +20,10 @@ output/
 .vscode/
 .idea/
 
-
+# OpenSky-derived data must not be published (OpenSky terms of use, section 3)
+eval/labeled_set.parquet
+eval/recorded_tracks.parquet
+eval/manifest.json
+eval/real_detection_review.json
+eval/real_detection_review_after.json
+eval/taxonomy_review.csv

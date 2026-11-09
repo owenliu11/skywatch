@@ -121,6 +121,14 @@ Staleness thresholds come from observed report intervals: aircraft fade at 20 se
 - A hard crash can lose open or pending alerts, and detector windows start empty after a restart.
 - SkyWatch has no authentication and is not deployed publicly. WebSocket Origin checks are not authentication.
 
+## Data and attribution
+
+Flight data comes from [The OpenSky Network](https://opensky-network.org). Recorded tracks, labeled evaluation data and real aircraft identifiers are not distributed here, so the published results can't be rerun from this repository alone. Aircraft in the published evaluation reports use arbitrary labels.
+
+> Matthias Schäfer, Martin Strohmeier, Vincent Lenders, Ivan Martinovic and Matthias Wilhelm. "Bringing up OpenSky: A large-scale ADS-B sensor network for research." ACM/IEEE International Conference on Information Processing in Sensor Networks, April 2014.
+
+SkyWatch is a personal, non-commercial learning project. Anyone running it needs their own OpenSky access and must follow OpenSky's [terms of use](https://opensky-network.org/about/terms-of-use).
+
 ## Documentation
 
 - [Architecture and learning guide](docs/skywatch_architecture.md)
