@@ -1,74 +1,132 @@
 # SkyWatch
 
-A personal realtime airspace explorer built with FastAPI, React and MapLibre. Phase 3 implements viewport-filtered live aircraft, smooth motion, stale-data indicators, aircraft details, historical tracks and operational metrics. Phase 4 anomaly detection is not implemented.
+A real-time airspace explorer with rule-based anomaly detection. SkyWatch polls live aircraft positions from OpenSky, streams them to a MapLibre map over WebSockets, stores history in TimescaleDB, and flags physically implausible tracks as they happen.
 
-**Status: Phase 3 local functional acceptance complete.** Full evidence and nonblocking limitations are recorded below.
+Built with FastAPI, asyncio, React, TypeScript, TimescaleDB and Redis. Status: **v0.4.0, local only, rules only.**
+
+## Features
+
+- **Live map:** viewport-filtered snapshots and deltas over WebSockets, smooth motion between reports, stale-data indicators, and automatic reconnect with backoff.
+- **Aircraft details:** current state, recent track history and recent anomalies for a selected aircraft.
+- **Anomaly detection:** rules for impossible speed, climb and turn rates, teleports and speed mismatches, delivered live and persisted as merged alerts.
+- **Adaptive ingestion:** per-region polling that responds to traffic density, rate limits and the remaining daily credit budget.
+- **Failure isolation:** database backpressure can lose history but never blocks the live feed. Slow WebSocket clients drop frames and receive a fresh snapshot.
+- **Measured evaluation:** a frozen, reproducible dataset with injected anomalies and an explicit list of blind spots.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    OS[OpenSky API] --> SCH[Region scheduler]
+    R[(Redis<br/>OAuth token and lock)] --- SCH
+    subgraph API[FastAPI process]
+        SCH --> LS[LiveState]
+        SCH --> DET[Detector windows and rules]
+        SCH --> Q[Bounded write queue]
+        LS --> WS[Broadcast loop]
+        DET --> WS
+    end
+    Q --> DB[(TimescaleDB)]
+    DET --> DB
+    WS -->|/ws/live| UI[React and MapLibre]
+    DB -->|REST history| UI
+```
+
+Polling, live state, detection and broadcasting share one API process, so live aircraft exist only in that process's memory. Each observation reaches live state and the detector before it is offered to the history queue.
 
 ## Run locally
 
-Set `OPENSKY_CLIENT_ID` and `OPENSKY_CLIENT_SECRET` in the root `.env` (never commit it), then:
+You need Docker, Node 22 and [OpenSky API credentials](https://opensky-network.org/).
 
-```sh
+```bash
+cp .env.example .env
+```
+
+Set `OPENSKY_CLIENT_ID` and `OPENSKY_CLIENT_SECRET` in `.env`, then start the backend and frontend:
+
+```bash
 docker compose up -d
-cd frontend
-npm ci
-npm run dev
 ```
 
-Open `http://localhost:5173`. Backend API documentation is at `http://localhost:8000/docs`; `/health` reports dependency, ingestion, WebSocket and broadcast timing metrics. Stop the API when finished to conserve upstream credits: `docker compose stop api`. Keep the volumes to retain history.
-
-## Phase 3 architecture
-
-OpenSky polling updates the process-local `LiveState` before offering observations to the bounded TimescaleDB write queue. A shared approximately one-second broadcast loop evicts expired aircraft, builds a spatial grid and sends viewport snapshots or changed-aircraft deltas. Unchanged ticks send nothing. Slow consumers drop new frames and request a replacement snapshot; drop and resync counters advance together.
-
-React owns the HUD and selected-aircraft panel; MapLibre owns aircraft rendering. Its 100 ms extrapolation loop awaits the previous source update and skips work when the worker is busy. Extrapolation uses position time, bounded prediction and smoothed server clock offset. Small corrections blend; large corrections snap. Database backpressure can lose history without blocking the live feed. Redis outages interrupt token-dependent polling; existing live state continues serving and ages out normally. Cold startup requires both dependencies.
-
-The frontend reconnects with exponential backoff and equal jitter (initial delay 0.5–1 s; capped at 15–30 s). A valid aircraft frame resets backoff. Disconnect/error clears aircraft and selection through the existing serialized source-update path and stops extrapolation; reconnection sends the current viewport for a fresh snapshot. Cleanup cancels pending retries.
-
-## Staleness policy
-
-The earlier Phase 3 measurement was **p50 = 9 s, p90 = 17 s, p99 = 29 s**. These are preserved results from the build conversation, not a newly measured distribution. The original raw output and maximum gap were not available in this pass.
-
-- `STALE_AFTER_S = 20`: stop extrapolation and fade aircraft at 20 seconds since `last_contact`.
-- `LOST_AFTER_S = 60`: backend expiry removes aircraft older than the 60-second cutoff on its next tick.
-
-Twenty seconds rounds above the measured p90; sixty seconds deliberately leaves margin beyond p99 for polling delays. The guide's SQL measures inter-observation gaps, which inform this policy but are not the same as instantaneous position age:
-
-```sql
-SELECT percentile_disc(0.50) WITHIN GROUP (ORDER BY d) AS p50,
-       percentile_disc(0.90) WITHIN GROUP (ORDER BY d) AS p90,
-       percentile_disc(0.99) WITHIN GROUP (ORDER BY d) AS p99,
-       max(d) AS max_gap
-FROM (
-  SELECT EXTRACT(EPOCH FROM time - LAG(time) OVER
-    (PARTITION BY icao24 ORDER BY time)) AS d
-  FROM state_vectors
-  WHERE time > now() - INTERVAL '2 hours'
-) s
-WHERE d IS NOT NULL AND d > 0;
+```bash
+cd frontend && npm ci && npm run dev
 ```
 
-## API and WebSocket Origin configuration
+Open <http://localhost:5173>. API docs are at <http://localhost:8000/docs>.
 
-`GET /anomalies?since=&type=` always returns HTTP 200 with `[]`. Both optional query parameters are reserved, ignored string filters, documented in OpenAPI. This is a Phase 4 placeholder, not evidence that an anomaly scan found nothing.
+Polling spends OpenSky credits, so stop the API when you finish. The volumes keep your history.
 
-`WS_ALLOWED_ORIGINS` is a comma-separated list of exact browser origins, passed through Compose. Defaults allow `http://localhost:5173`, `http://127.0.0.1:5173`, `http://localhost:8000` and `http://127.0.0.1:8000`. Set it in the root `.env` and recreate the API (`docker compose up -d api`) when using another frontend origin. Present but unlisted origins, including `null`, are rejected before acceptance. Origin-less CLI clients are supported; Origin validation is not authentication. Uvicorn's protocol ping interval and timeout remain 20 seconds.
+```bash
+docker compose stop api
+```
 
-## Validation and practical performance
+## API
 
-See [Phase 3 completion evidence](PHASE3_COMPLETION.md) for the file inventory, command log, failure drills, performance measurements and remaining limits. The earlier [Step 7 report](PHASE3_STEP7_ACCEPTANCE.md) is retained as historical evidence.
+| Endpoint | Purpose |
+|---|---|
+| `GET /health` | Dependency status and ingestion, WebSocket and detector counters |
+| `GET /aircraft?bbox=south,west,north,east` | Live aircraft in a viewport |
+| `GET /aircraft/{icao24}` | Current state of one aircraft |
+| `GET /aircraft/{icao24}/track` | Stored track history, up to 24 hours |
+| `GET /anomalies` | Open and persisted alerts, filterable by time, type and aircraft |
+| `WS /ws/live` | Send a viewport message; receive `snapshot`, `delta` and `anomaly` frames |
 
-At approximately 100 real aircraft, the 30-second WebSocket check received only four frames in a fixed viewport. Zoom reduced snapshot size from 9,209 to 2,271 bytes. Backend tick last/p95 was 0.794 / 2.018 ms. Browser source-update p95 was approximately 3.5–4.1 ms in sampled windows, within the 100 ms animation interval. These are local smoke measurements, not a load-test guarantee.
+## Configuration
 
-For a repeatable lightweight browser measurement, open `http://localhost:5173/?perf=1` and inspect console messages named `SkyWatch render performance`. Every 100 completed updates reports aircraft count, elapsed window time, p50/p95/max update time and skipped busy calls. Timing includes feature construction and the awaited MapLibre source/worker update; it does not measure final GPU presentation. Normal URLs do not collect timing samples.
+| Variable | Default | Purpose |
+|---|---|---|
+| `OPENSKY_CLIENT_ID`, `OPENSKY_CLIENT_SECRET` | empty | OpenSky OAuth credentials |
+| `DATABASE_URL`, `REDIS_URL` | Compose services | Storage connections |
+| `DAILY_CREDIT_BUDGET` | `4000` | Local limit on OpenSky credits per day |
+| `POLL_REGIONS` | `bay_area,socal` | Regions to poll |
+| `WS_ALLOWED_ORIGINS` | local dev origins | Exact browser origins allowed on `/ws/live` |
 
-```sh
+Test-only settings are described in [the testing guide](docs/testing-readiness.md).
+
+## Testing
+
+Backend tests use a real TimescaleDB with transaction rollback. CI runs Ruff, pytest, mypy, and the frontend build and lint.
+
+```bash
 docker compose exec -T api ruff check .
-docker compose exec -T api pytest -v
+docker compose exec -T api pytest
 docker compose exec -T api mypy --cache-dir=/tmp/skywatch-mypy-cache app
-cd frontend
-npm run build
-npm run lint
 ```
 
-Backend tests use real TimescaleDB with transaction rollback. Mypy is currently nonblocking in CI and reports existing ingestion typing errors; see the completion report.
+```bash
+cd frontend && npm run build && npm run lint
+```
+
+## Results
+
+These come from local measurements and a controlled evaluation.
+
+| Measure | Result |
+|---|---|
+| Evaluation set | 615 held-out track sessions, 30 injected events, 50,515 candidate windows |
+| Window precision / recall / F1 | 69.12% / 62.94% / 65.89% |
+| Event recall | 22 of 30 (73.33%) |
+| Merged-alert precision | 58.18% |
+| Replay of 113,650 real observations | 54 alerts reviewed; one turn-rule guard reduced this to 42 |
+| Detector tick p95 (389 windows) | 10.70 ms |
+| Broadcast tick p95 (389 windows) | 12.38 ms |
+
+Staleness thresholds come from observed report intervals: aircraft fade at 20 seconds and are removed after 60 seconds. The detector's 36-second gap limit is the highest regional p99 in the [measured gap distribution](docs/gap_distribution.txt).
+
+## Limitations
+
+- These are injection results on recorded traffic assumed to be normal. They are not detection rates against real spoofing, and the post-review baseline is not an independent holdout.
+- The ×0.1 velocity injection was missed in all five events, and subtle position drift remains a blind spot.
+- Latency figures are local smoke measurements at about 100 aircraft, not a load-test ceiling.
+- A hard crash can lose open or pending alerts, and detector windows start empty after a restart.
+- SkyWatch has no authentication and is not deployed publicly. WebSocket Origin checks are not authentication.
+
+## Documentation
+
+- [Architecture and learning guide](docs/skywatch_architecture.md)
+- [Testing and TestForge integration](docs/testing-readiness.md)
+- [Rules baseline and evaluation](docs/rules_baseline.md)
+- [Anomaly taxonomy](docs/taxonomy.md)
+- [Implementation decisions](docs/phase4_implementation.md)
+- [Remaining work](docs/phase5_checklist.md)
+- [Phase 3](docs/evidence/phase3/PHASE3_COMPLETION.md) and [Phase 4](docs/evidence/phase4/phase4_completion.md) verification records
