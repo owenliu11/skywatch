@@ -1,0 +1,30 @@
+flowchart TD
+    A["RegionScheduler._loop(region)"] --> B["fetch_region: check bbox credit cost"]
+    B --> C["get_token: Redis cache / refresh lock\nOAuth client credentials if needed"]
+    C --> D["GET states/all with bbox and extended=1\n401: refresh and retry once"]
+    D --> E["Sync quota headers or record local spend\nparse_states → parse_state_vector"]
+    E --> F{"Valid StateVector?"}
+    F -->|"bad row"| ERR["ParseError; other rows continue"]
+    F -->|"yes"| G["FetchResult → on_result\nhandle_ingest_result"]
+    G --> H["1. LiveState.upsert\naccept only newer last_contact"]
+    H --> I["2. TrackWindows.append\nindependent acceptance rules"]
+    I --> J["3. offer_vector\nnonblocking history enqueue"]
+    J -->|"accepted"| K["collect_batch → write_batch\ntransaction / dedup / aircraft upsert"]
+    K --> DB[("state_vectors + aircraft")]
+    J -->|"full queue"| GAP["record drop → RecentGaps\naggregate pending ingest_gaps"]
+    K -->|"DB failure: batch history dropped"| GAP
+    GAP -->|"later writer batch"| GD[("ingest_gaps")]
+    H -.-> L["Next broadcast tick\nevict contact age over 60s\nbuild 1-degree grid"]
+    I -.-> M["DetectionPipeline.tick\nready and changed window only"]
+    GAP -.-> M
+    M --> N["FeatureComputer.compute\ncontact clock + position clock"]
+    N --> O["RuleDetector.evaluate\nabstain or first matching rule"]
+    O --> P["AnomalyStore.hit\nmerge aircraft + rule for 120s"]
+    P -->|"new event only"| W["anomaly frame"]
+    P -->|"close → pending → async flush"| AD[("anomalies")]
+    L --> V["viewport candidates → build_frame\nsnapshot or enter/update/leave delta"]
+    V --> SEND["per-client queue → sender_loop"]
+    W --> SEND
+    SEND --> UI["App.applyFrame → aircraftRef / alerts\nGeoJSON source → MapLibre"]
+    DB -->|"track REST on selection"| UI
+    AD -->|"anomaly REST on snapshot / 60s refresh"| UI

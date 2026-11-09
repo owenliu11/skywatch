@@ -1,0 +1,24 @@
+Calibration: 2026-10-01 UTC, local TimescaleDB, preceding 6-hour query window.
+Active regions: bay_area and socal (confirmed by user; Denver is not active).
+Positive within-aircraft, within-region differences in state_vectors.time (last_contact).
+region    n     p50_s p90_s p99_s max_s
+bay_area  1270  10    13    21    130
+socal     1741  10    21    36    269
+GAP_S = 36 seconds: maximum of the two active-region p99 values, one shared policy.
+MAX_SPAN_S = 180; MIN_SAMPLES = 5; MAX_SAMPLES = 10; DT_FLOOR_S = 1.
+Limitations: local recording is intermittent; six-hour query coverage does not mean
+six hours of continuous observations. This measures stored history, which can lose
+samples under backpressure. Recalibrate after a continuous local recording session.
+Denver: 585 rows, ~10 minutes, zero tracks >=30 samples; not used for calibration.
+
+Reproduce:
+WITH d AS (
+ SELECT region, extract(epoch FROM time-lag(time) OVER
+ (PARTITION BY icao24,region ORDER BY time)) s
+ FROM state_vectors WHERE region IN ('bay_area','socal')
+ AND time>now()-interval '6 hours'
+)
+SELECT region,count(*),percentile_disc(0.5) WITHIN GROUP (ORDER BY s) p50,
+percentile_disc(0.9) WITHIN GROUP (ORDER BY s) p90,
+percentile_disc(0.99) WITHIN GROUP (ORDER BY s) p99,max(s)
+FROM d WHERE s>0 GROUP BY region;

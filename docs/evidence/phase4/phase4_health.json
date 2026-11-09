@@ -1,0 +1,49 @@
+{
+  "detector_windows": 389,
+  "detector_ready": 360,
+  "features_computed_total": 1108,
+  "features_skipped_total": {
+    "dt_invalid": 3
+  },
+  "feature_pairs_skipped_total": {
+    "dt_invalid": 169
+  },
+  "detector_abstentions_total": {
+    "on_ground": 248,
+    "uncomputable": 3
+  },
+  "detections_total": {
+    "impossible_turn": 1
+  },
+  "anomalies_open": 1,
+  "anomalies_pending": 0,
+  "anomalies_flushed_total": 0,
+  "anomaly_flush_errors_total": 0,
+  "detect_ms_last": 10.963458000105675,
+  "detect_ms_p95": 10.698833000105878,
+  "model_version": null,
+  "status": "ok",
+  "database": true,
+  "redis": true,
+  "live_map_size": 389,
+  "live_map_evicted_total": 470,
+  "ws_connections": 1,
+  "ws_connections_max": 200,
+  "ws_frames_sent_total": 36,
+  "ws_frames_dropped_total": 0,
+  "ws_resyncs_total": 0,
+  "tick_ms_last": 12.383167000052708,
+  "tick_ms_p95": 12.383167000052708,
+  "credits_remaining": 3637,
+  "credit_budget": 4000,
+  "queue_depth": 0,
+  "queue_max": 10000,
+  "rows_offered_total": 3513,
+  "rows_inserted_total": 2867,
+  "rows_deduped_total": 646,
+  "dropped_total": 0,
+  "last_drop_at": null,
+  "batches_written_total": 16,
+  "last_batch_rows": 133,
+  "last_batch_ms": 27.79
+}

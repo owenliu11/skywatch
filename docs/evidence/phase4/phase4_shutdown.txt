@@ -1,0 +1,1 @@
+PASS: all 15 events visible before graceful API shutdown exist in anomalies afterwards.

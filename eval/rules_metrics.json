@@ -1,0 +1,520 @@
+{
+  "overall": {
+    "counts": {
+      "tp": 479,
+      "fp": 214,
+      "fn": 282,
+      "tn": 42582,
+      "candidate_windows": 50515,
+      "positive_excluded": 30,
+      "negative_excluded": 6928
+    },
+    "exclusions": {
+      "on_ground": 6784,
+      "uncomputable": 174
+    },
+    "window_precision": 0.6911976911976911,
+    "window_recall": 0.6294349540078844,
+    "window_f1": 0.6588720770288858,
+    "events": 30,
+    "events_caught": 22,
+    "event_recall": 0.7333333333333333,
+    "alerts": 55,
+    "correct_alerts": 32,
+    "alert_precision": 0.5818181818181818,
+    "excluded_fraction": 0.13774126497080075,
+    "event_details": [
+      {
+        "track_id": "track-01",
+        "kind": "slow_drift",
+        "caught": false
+      },
+      {
+        "track_id": "track-02",
+        "kind": "slow_drift",
+        "caught": false
+      },
+      {
+        "track_id": "track-03",
+        "kind": "frozen_position",
+        "caught": true
+      },
+      {
+        "track_id": "track-04",
+        "kind": "velocity_inconsistency",
+        "caught": false
+      },
+      {
+        "track_id": "track-05",
+        "kind": "impossible_climb_a",
+        "caught": true
+      },
+      {
+        "track_id": "track-06",
+        "kind": "duplicate_identity",
+        "caught": true
+      },
+      {
+        "track_id": "track-07",
+        "kind": "teleport",
+        "caught": true
+      },
+      {
+        "track_id": "track-08",
+        "kind": "impossible_climb_b",
+        "caught": true
+      },
+      {
+        "track_id": "track-09",
+        "kind": "frozen_position",
+        "caught": true
+      },
+      {
+        "track_id": "track-10",
+        "kind": "duplicate_identity",
+        "caught": true
+      },
+      {
+        "track_id": "track-11",
+        "kind": "impossible_climb_b",
+        "caught": true
+      },
+      {
+        "track_id": "track-12",
+        "kind": "velocity_inconsistency",
+        "caught": false
+      },
+      {
+        "track_id": "track-13",
+        "kind": "slow_drift",
+        "caught": true
+      },
+      {
+        "track_id": "track-14",
+        "kind": "duplicate_identity",
+        "caught": true
+      },
+      {
+        "track_id": "track-15",
+        "kind": "impossible_climb_a",
+        "caught": true
+      },
+      {
+        "track_id": "track-16",
+        "kind": "frozen_position",
+        "caught": true
+      },
+      {
+        "track_id": "track-17",
+        "kind": "teleport",
+        "caught": true
+      },
+      {
+        "track_id": "track-18",
+        "kind": "velocity_inconsistency",
+        "caught": false
+      },
+      {
+        "track_id": "track-19",
+        "kind": "impossible_climb_a",
+        "caught": true
+      },
+      {
+        "track_id": "track-20",
+        "kind": "slow_drift",
+        "caught": false
+      },
+      {
+        "track_id": "track-21",
+        "kind": "impossible_climb_b",
+        "caught": true
+      },
+      {
+        "track_id": "track-22",
+        "kind": "impossible_climb_b",
+        "caught": true
+      },
+      {
+        "track_id": "track-23",
+        "kind": "frozen_position",
+        "caught": true
+      },
+      {
+        "track_id": "track-24",
+        "kind": "velocity_inconsistency",
+        "caught": false
+      },
+      {
+        "track_id": "track-25",
+        "kind": "teleport",
+        "caught": true
+      },
+      {
+        "track_id": "track-26",
+        "kind": "impossible_climb_a",
+        "caught": true
+      },
+      {
+        "track_id": "track-27",
+        "kind": "duplicate_identity",
+        "caught": true
+      },
+      {
+        "track_id": "track-28",
+        "kind": "teleport",
+        "caught": true
+      },
+      {
+        "track_id": "track-29",
+        "kind": "velocity_inconsistency",
+        "caught": false
+      },
+      {
+        "track_id": "track-30",
+        "kind": "teleport",
+        "caught": true
+      }
+    ]
+  },
+  "per_type": {
+    "duplicate_identity": {
+      "counts": {
+        "tp": 162,
+        "fp": 214,
+        "fn": 8,
+        "tn": 41177,
+        "candidate_windows": 48519,
+        "positive_excluded": 30,
+        "negative_excluded": 6928
+      },
+      "exclusions": {
+        "on_ground": 6784,
+        "uncomputable": 174
+      },
+      "window_precision": 0.4308510638297872,
+      "window_recall": 0.9529411764705882,
+      "window_f1": 0.5934065934065934,
+      "events": 4,
+      "events_caught": 4,
+      "event_recall": 1.0,
+      "alerts": 34,
+      "correct_alerts": 11,
+      "alert_precision": 0.3235294117647059,
+      "excluded_fraction": 0.14340773717512728,
+      "event_details": [
+        {
+          "track_id": "track-06",
+          "kind": "duplicate_identity",
+          "caught": true
+        },
+        {
+          "track_id": "track-10",
+          "kind": "duplicate_identity",
+          "caught": true
+        },
+        {
+          "track_id": "track-14",
+          "kind": "duplicate_identity",
+          "caught": true
+        },
+        {
+          "track_id": "track-27",
+          "kind": "duplicate_identity",
+          "caught": true
+        }
+      ]
+    },
+    "frozen_position": {
+      "counts": {
+        "tp": 77,
+        "fp": 214,
+        "fn": 25,
+        "tn": 41071,
+        "candidate_windows": 48315,
+        "positive_excluded": 0,
+        "negative_excluded": 6928
+      },
+      "exclusions": {
+        "on_ground": 6784,
+        "uncomputable": 144
+      },
+      "window_precision": 0.2646048109965636,
+      "window_recall": 0.7549019607843137,
+      "window_f1": 0.39185750636132316,
+      "events": 4,
+      "events_caught": 4,
+      "event_recall": 1.0,
+      "alerts": 30,
+      "correct_alerts": 7,
+      "alert_precision": 0.23333333333333334,
+      "excluded_fraction": 0.14339232122529236,
+      "event_details": [
+        {
+          "track_id": "track-03",
+          "kind": "frozen_position",
+          "caught": true
+        },
+        {
+          "track_id": "track-09",
+          "kind": "frozen_position",
+          "caught": true
+        },
+        {
+          "track_id": "track-16",
+          "kind": "frozen_position",
+          "caught": true
+        },
+        {
+          "track_id": "track-23",
+          "kind": "frozen_position",
+          "caught": true
+        }
+      ]
+    },
+    "impossible_climb_a": {
+      "counts": {
+        "tp": 106,
+        "fp": 214,
+        "fn": 4,
+        "tn": 41122,
+        "candidate_windows": 48374,
+        "positive_excluded": 0,
+        "negative_excluded": 6928
+      },
+      "exclusions": {
+        "on_ground": 6784,
+        "uncomputable": 144
+      },
+      "window_precision": 0.33125,
+      "window_recall": 0.9636363636363636,
+      "window_f1": 0.4930232558139535,
+      "events": 4,
+      "events_caught": 4,
+      "event_recall": 1.0,
+      "alerts": 27,
+      "correct_alerts": 4,
+      "alert_precision": 0.14814814814814814,
+      "excluded_fraction": 0.14321743085128374,
+      "event_details": [
+        {
+          "track_id": "track-05",
+          "kind": "impossible_climb_a",
+          "caught": true
+        },
+        {
+          "track_id": "track-15",
+          "kind": "impossible_climb_a",
+          "caught": true
+        },
+        {
+          "track_id": "track-19",
+          "kind": "impossible_climb_a",
+          "caught": true
+        },
+        {
+          "track_id": "track-26",
+          "kind": "impossible_climb_a",
+          "caught": true
+        }
+      ]
+    },
+    "impossible_climb_b": {
+      "counts": {
+        "tp": 78,
+        "fp": 214,
+        "fn": 4,
+        "tn": 41003,
+        "candidate_windows": 48227,
+        "positive_excluded": 0,
+        "negative_excluded": 6928
+      },
+      "exclusions": {
+        "on_ground": 6784,
+        "uncomputable": 144
+      },
+      "window_precision": 0.2671232876712329,
+      "window_recall": 0.9512195121951219,
+      "window_f1": 0.41711229946524064,
+      "events": 4,
+      "events_caught": 4,
+      "event_recall": 1.0,
+      "alerts": 27,
+      "correct_alerts": 4,
+      "alert_precision": 0.14814814814814814,
+      "excluded_fraction": 0.1436539697679723,
+      "event_details": [
+        {
+          "track_id": "track-08",
+          "kind": "impossible_climb_b",
+          "caught": true
+        },
+        {
+          "track_id": "track-11",
+          "kind": "impossible_climb_b",
+          "caught": true
+        },
+        {
+          "track_id": "track-21",
+          "kind": "impossible_climb_b",
+          "caught": true
+        },
+        {
+          "track_id": "track-22",
+          "kind": "impossible_climb_b",
+          "caught": true
+        }
+      ]
+    },
+    "slow_drift": {
+      "counts": {
+        "tp": 6,
+        "fp": 214,
+        "fn": 126,
+        "tn": 41218,
+        "candidate_windows": 48492,
+        "positive_excluded": 0,
+        "negative_excluded": 6928
+      },
+      "exclusions": {
+        "on_ground": 6784,
+        "uncomputable": 144
+      },
+      "window_precision": 0.02727272727272727,
+      "window_recall": 0.045454545454545456,
+      "window_f1": 0.03409090909090909,
+      "events": 4,
+      "events_caught": 1,
+      "event_recall": 0.25,
+      "alerts": 24,
+      "correct_alerts": 1,
+      "alert_precision": 0.041666666666666664,
+      "excluded_fraction": 0.14286892683329208,
+      "event_details": [
+        {
+          "track_id": "track-01",
+          "kind": "slow_drift",
+          "caught": false
+        },
+        {
+          "track_id": "track-02",
+          "kind": "slow_drift",
+          "caught": false
+        },
+        {
+          "track_id": "track-13",
+          "kind": "slow_drift",
+          "caught": true
+        },
+        {
+          "track_id": "track-20",
+          "kind": "slow_drift",
+          "caught": false
+        }
+      ]
+    },
+    "teleport": {
+      "counts": {
+        "tp": 50,
+        "fp": 214,
+        "fn": 0,
+        "tn": 41293,
+        "candidate_windows": 48485,
+        "positive_excluded": 0,
+        "negative_excluded": 6928
+      },
+      "exclusions": {
+        "on_ground": 6784,
+        "uncomputable": 144
+      },
+      "window_precision": 0.1893939393939394,
+      "window_recall": 1.0,
+      "window_f1": 0.3184713375796178,
+      "events": 5,
+      "events_caught": 5,
+      "event_recall": 1.0,
+      "alerts": 28,
+      "correct_alerts": 5,
+      "alert_precision": 0.17857142857142858,
+      "excluded_fraction": 0.1428895534701454,
+      "event_details": [
+        {
+          "track_id": "track-07",
+          "kind": "teleport",
+          "caught": true
+        },
+        {
+          "track_id": "track-17",
+          "kind": "teleport",
+          "caught": true
+        },
+        {
+          "track_id": "track-25",
+          "kind": "teleport",
+          "caught": true
+        },
+        {
+          "track_id": "track-28",
+          "kind": "teleport",
+          "caught": true
+        },
+        {
+          "track_id": "track-30",
+          "kind": "teleport",
+          "caught": true
+        }
+      ]
+    },
+    "velocity_inconsistency": {
+      "counts": {
+        "tp": 0,
+        "fp": 214,
+        "fn": 115,
+        "tn": 41104,
+        "candidate_windows": 48361,
+        "positive_excluded": 0,
+        "negative_excluded": 6928
+      },
+      "exclusions": {
+        "on_ground": 6784,
+        "uncomputable": 144
+      },
+      "window_precision": 0.0,
+      "window_recall": 0.0,
+      "window_f1": 0.0,
+      "events": 5,
+      "events_caught": 0,
+      "event_recall": 0.0,
+      "alerts": 23,
+      "correct_alerts": 0,
+      "alert_precision": 0.0,
+      "excluded_fraction": 0.14325592936457063,
+      "event_details": [
+        {
+          "track_id": "track-04",
+          "kind": "velocity_inconsistency",
+          "caught": false
+        },
+        {
+          "track_id": "track-12",
+          "kind": "velocity_inconsistency",
+          "caught": false
+        },
+        {
+          "track_id": "track-18",
+          "kind": "velocity_inconsistency",
+          "caught": false
+        },
+        {
+          "track_id": "track-24",
+          "kind": "velocity_inconsistency",
+          "caught": false
+        },
+        {
+          "track_id": "track-29",
+          "kind": "velocity_inconsistency",
+          "caught": false
+        }
+      ]
+    }
+  }
+}

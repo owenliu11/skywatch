@@ -1,0 +1,4 @@
+PASS: frozen dataset SHA256 matches manifest.
+PASS: 529 evaluation aircraft identities are disjoint from reserved earlier identities.
+PASS: seed and per-session injection labels preserved.
+PASS: rerunning frozen evaluation exactly reproduces rules_metrics.json.
