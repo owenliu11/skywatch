@@ -54,7 +54,9 @@ type DeltaFrame = {
 };
 
 
-type LiveFrame = SnapshotFrame | DeltaFrame;
+type Anomaly = { event_id: string; icao24: string; detector: string; window_end: number };
+type AnomalyFrame = { t: "anomaly"; seq: number; server_time: number; anomalies: Anomaly[] };
+type LiveFrame = SnapshotFrame | DeltaFrame | AnomalyFrame;
 
 
 function rowToFeature(
@@ -167,6 +169,7 @@ function App() {
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState("");
   const [feedError, setFeedError] = useState("");
+  const [anomalyError, setAnomalyError] = useState("");
   const [summary, setSummary] = useState({ visible: 0, live: 0, stale: 0, frameAge: -1 });
   const [viewport, setViewport] = useState("36.80° N · 119.50° W · Zoom 5.5");
   const selectedIdRef = useRef<string | null>(null);
@@ -213,6 +216,34 @@ function App() {
     }
 
     const aircraftStore = aircraftRef.current;
+    const anomalies = new Map<string, Anomaly>();
+    let anomalyRequest = 0;
+    async function refetchAnomalies() {
+      const request = ++anomalyRequest;
+      try {
+        const response = await fetch("/anomalies?limit=5000");
+        if (!response.ok) throw new Error("anomaly fetch failed");
+        const data = await response.json() as { anomalies: Anomaly[]; truncated: boolean };
+        if (disposed || request !== anomalyRequest) return;
+        // Merge: an open frame may arrive while this request is in flight.
+        for (const alert of data.anomalies) anomalies.set(alert.event_id, alert);
+        setAnomalyError(data.truncated ? "Recent alert history is truncated." : "");
+        refreshSelection();
+        framePending = true;
+        void updateMapSource();
+      } catch {
+        if (!disposed) setAnomalyError("Alert history unavailable. Retrying on the next refresh…");
+      }
+    }
+    function anomalyLabel(id: string) {
+      const now = serverNowMs() / 1000;
+      const labels = new Set<string>();
+      for (const [key, alert] of anomalies) {
+        if (alert.window_end < now - 3600) anomalies.delete(key);
+        else if (alert.icao24 === id) labels.add(alert.detector.replace("rule:", ""));
+      }
+      return [...labels].join(", ");
+    }
 
     const map = new maplibregl.Map({
       container: mapContainer.current,
@@ -372,7 +403,10 @@ function App() {
                 addOrUpdateProperties: previous !== feature
                   ? Object.entries(rendered.properties ?? {})
                     .map(([key, value]) => ({ key, value }))
-                  : [{ key: "stale", value: rendered.properties!.stale }],
+                  : [
+                      { key: "stale", value: rendered.properties!.stale },
+                      { key: "anomalous", value: rendered.properties!.anomalous },
+                    ],
               });
             }
           }
@@ -444,7 +478,7 @@ function App() {
         return;
       }
       const ageS = Math.max(0, serverNowMs() / 1000 - properties.last_contact);
-      setSelectedAircraft({ icao24: id, properties, ageS });
+      setSelectedAircraft({ icao24: id, properties: { ...properties, anomaly: anomalyLabel(id) }, ageS });
     }
 
     function selectAircraft(event: maplibregl.MapLayerMouseEvent) {
@@ -485,7 +519,15 @@ function App() {
       updateServerClock(
         frame.server_time,
       );
+      if (frame.t === "anomaly") {
+        for (const alert of frame.anomalies) anomalies.set(alert.event_id, alert);
+        refreshSelection();
+        framePending = true;
+        void updateMapSource();
+        return;
+      }
       if (frame.t === "snapshot") {
+        void refetchAnomalies();
         aircraftRef.current.clear();
         corrections.clear();
 
@@ -647,7 +689,7 @@ function App() {
       const stale = nowMs / 1000 - feature.properties!.last_contact >= STALE_AFTER_S;
       const predicted = {
         ...extrapolateFeature(feature, nowMs),
-        properties: { ...feature.properties, stale },
+        properties: { ...feature.properties, stale, anomalous: Boolean(anomalyLabel(id)) },
       };
       if (stale) {
         corrections.delete(id);
@@ -698,7 +740,7 @@ function App() {
       setConnection("connecting");
       let socketFailed = false;
       const ws = new WebSocket(
-        "ws://localhost:8000/ws/live",
+        import.meta.env.VITE_WS_URL || "ws://localhost:8000/ws/live",
       );
 
       wsRef.current = ws;
@@ -741,7 +783,8 @@ function App() {
 
             if (
               frame.t !== "snapshot" &&
-              frame.t !== "delta"
+              frame.t !== "delta" &&
+              frame.t !== "anomaly"
             ) {
               console.warn(
                 "Ignoring WebSocket message:",
@@ -806,6 +849,15 @@ function App() {
         return;
       }
 
+      map.addLayer({
+        id: "aircraft-anomalies", type: "circle", source: "aircraft",
+        paint: {
+          "circle-radius": ["case", ["boolean", ["get", "anomalous"], false], 14, 0],
+          "circle-color": "#fb7185", "circle-opacity": 0.15,
+          "circle-stroke-color": "#fb7185", "circle-stroke-width": 2,
+          "circle-stroke-opacity": ["case", ["boolean", ["get", "anomalous"], false], 1, 0],
+        },
+      });
       map.addLayer({
         id: "aircraft-symbols",
 
@@ -1032,6 +1084,7 @@ function App() {
     );
 
 
+    const anomalyTimer = window.setInterval(() => { void refetchAnomalies(); }, 60_000);
     const selectionTimer = window.setInterval(() => {
       refreshSelection();
       refreshSummary();
@@ -1039,6 +1092,7 @@ function App() {
 
     return () => {
       window.clearInterval(selectionTimer);
+      window.clearInterval(anomalyTimer);
       map.off("click", "aircraft-symbols", selectAircraft);
       map.off("mouseenter", "aircraft-symbols", enterAircraft);
       map.off("mouseleave", "aircraft-symbols", leaveAircraft);
@@ -1119,7 +1173,7 @@ function App() {
     connection === "connecting" ? "Connecting to the live aircraft feed…" :
     summary.frameAge < 0 ? "Connected. Waiting for the first aircraft snapshot…" :
     summary.frameAge >= STALE_AFTER_S ? "Live feed is quiet. Displayed positions may be out of date." :
-    summary.visible === 0 ? "No aircraft in this view. Pan or zoom out to explore." : ""
+    summary.visible === 0 ? "No aircraft in this view. Pan or zoom out to explore." : anomalyError
   );
 
   return (
@@ -1146,6 +1200,7 @@ function App() {
           <div className="altitude-scale" aria-hidden="true" />
           <div className="altitude-labels"><span>0 m · green</span><span>3,000 m · yellow</span><span>11,000+ m · orange</span></div>
           <p>Barometric altitude · unknown altitude uses green.</p>
+          <p>Pink ring: a rule anomaly observed within the past hour.</p>
           <p>LIVE: contact within {STALE_AFTER_S}s. STALE: {STALE_AFTER_S}s or older, frozen at 35% opacity.</p>
         </details>
         <p className="feed-age">{summary.frameAge < 0 ? "Awaiting live data" : `Last feed update ${summary.frameAge}s ago`} · Counts refresh every second</p>
@@ -1177,6 +1232,7 @@ function App() {
             <span>Last update {Math.floor(selectedAircraft.ageS)}s ago</span>
           </div>
           <dl className="aircraft-metrics">
+            <div><dt>Recent anomaly</dt><dd>{selectedAircraft.properties.anomaly || "None in the past hour"}</dd></div>
             <div><dt>Barometric altitude</dt><dd>{formatMeasurement(selectedAircraft.properties.baro_alt, "m")}</dd></div>
             <div><dt>Ground speed</dt><dd>{formatMeasurement(selectedAircraft.properties.velocity, "m/s", 1)}</dd></div>
             <div><dt>True track</dt><dd>{formatMeasurement(selectedAircraft.properties.track, "°", 1)}</dd></div>
