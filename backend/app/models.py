@@ -12,7 +12,18 @@ fabricate a 30,000-foot descent in the Phase 4 vertical-rate feature.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from pydantic import BaseModel, ConfigDict, field_validator
+
+
+def _validate_timestamp(value: int | None) -> int | None:
+    if value is not None:
+        try:
+            datetime.fromtimestamp(value, UTC)
+        except (OverflowError, OSError, ValueError) as exc:
+            raise ValueError("timestamp outside supported datetime range") from exc
+    return value
 
 
 class StateVector(BaseModel):
@@ -44,6 +55,11 @@ class StateVector(BaseModel):
 
     # Index 17. Only returned when the request sets extended=1.
     category: int | None = None
+
+    @field_validator("last_contact", "time_position")
+    @classmethod
+    def _check_timestamp(cls, value: int | None) -> int | None:
+        return _validate_timestamp(value)
 
     @field_validator("callsign", "squawk", mode="before")
     @classmethod
@@ -88,6 +104,12 @@ class StatesSnapshot(BaseModel):
     time: int
     region: str
     states: tuple[StateVector, ...]
+
+    @field_validator("time")
+    @classmethod
+    def _check_timestamp(cls, value: int) -> int:
+        _validate_timestamp(value)
+        return value
 
     @property
     def aircraft_count(self) -> int:

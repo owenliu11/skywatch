@@ -3,6 +3,21 @@ import pytest
 from app.ingest.parser import parse_state_vector, parse_states
 
 
+@pytest.mark.parametrize("index", [3, 4])
+def test_out_of_range_row_timestamps_are_rejected_without_losing_valid_rows(index):
+    valid = make_row()
+    invalid = make_row()
+    invalid[index] = 10**14
+    result = parse_states({"time": 1_700_000_000, "states": [invalid, valid]}, "test")
+    assert result.error_count == 1
+    assert len(result.snapshot.states) == 1
+
+
+def test_out_of_range_snapshot_timestamp_is_rejected():
+    with pytest.raises(ValueError, match="timestamp outside supported datetime range"):
+        parse_states({"time": 10**14, "states": []}, "test")
+
+
 def make_row() -> list[object]:
     return [
         "abc123",
